@@ -1,0 +1,61 @@
+[
+  {
+    "id": "job_1789819275958_2vr3s0",
+    "youtubeUrl": "https://www.youtube.com/watch?v=test",
+    "title": "Test",
+    "status": "completed",
+    "userId": "user_test",
+    "sessionId": null,
+    "duration": null,
+    "source": "ai",
+    "modelUsed": null,
+    "wordCount": 10,
+    "readingTime": 1,
+    "transcriptSource": "ai_generated",
+    "chunkCount": 1,
+    "tokenUsage": {
+      "input": 0,
+      "output": 0,
+      "total": 0
+    },
+    "estimatedCost": 0,
+    "timing": {
+      "fetchTitle": 0,
+      "aiGeneration": 0,
+      "total": 0
+    },
+    "markdown": "# Test",
+    "error": null,
+    "createdAt": "2026-09-19T12:01:15.958Z",
+    "updatedAt": "2026-09-19T12:01:15.958Z",
+    "completedAt": "2026-09-19T12:01:15.958Z"
+  },
+  {
+    "id": "job_1789810447626_5opnfc",
+    "createdAt": "2026-09-19T09:34:07.626Z",
+    "updatedAt": "2026-09-19T09:34:07.626Z",
+    "youtubeUrl": "https://youtu.be/test1234567",
+    "title": "Test Video Real",
+    "status": "completed",
+    "userId": "user_test",
+    "sessionId": "sess_test",
+    "duration": 1234,
+    "source": "ai",
+    "wordCount": 500,
+    "readingTime": 3,
+    "transcriptSource": "youtube_captions",
+    "chunkCount": 2,
+    "tokenUsage": {
+      "input": 100,
+      "output": 200,
+      "total": 300
+    },
+    "estimatedCost": 0.0001,
+    "timing": {
+      "fetchTitle": 100,
+      "aiGeneration": 1000,
+      "total": 1100
+    },
+    "markdown": "# Test"
+  }
+]

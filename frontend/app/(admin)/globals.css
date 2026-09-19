@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700&family=Geist+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ADMIN PANEL — separate bundle, but SAME TOKENS as user site */
+:root {
+  --admin-bg: #fcfcf9;
+  --admin-surface: #ffffff;
+  --admin-surface-hover: #f4f4f5;
+  --admin-border: #e4e4e7;
+  --admin-border-strong: #d4d4d8;
+  --admin-foreground: #18181b;
+  --admin-foreground-muted: #71717a;
+  --admin-primary: #18181b;
+  --admin-accent: #7c3aed;
+  --admin-accent-hover: #6d28d9;
+  
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+}
+
+* { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; box-sizing: border-box; }
+html { background: var(--admin-bg); }
+body {
+  background: var(--admin-bg);
+  color: var(--admin-foreground);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.font-display { font-family: 'Newsreader', Georgia, serif; letter-spacing: -0.03em; }
+.font-mono { font-family: 'Geist Mono', monospace; }
