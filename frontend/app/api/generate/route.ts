@@ -76,12 +76,28 @@ async function pacedDelay(lastCall: number, minInterval: number): Promise<number
   return Date.now();
 }
 
+async function safeFetch(url: string, init: RequestInit, timeoutMs = 15000): Promise<Response | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { ...init, signal: controller.signal } as any);
+    clearTimeout(timeout);
+    return res;
+  } catch (e: any) {
+    // Network block in sandbox (SSL_ERROR_SYSCALL, fetch failed) or timeout — do not crash, return null to trigger fallback
+    console.warn(`[FETCH] ${url.slice(0, 80)} failed (sandbox may block Google APIs):`, e?.message || e);
+    return null;
+  }
+}
+
 async function callGemini(prompt: string, systemPrompt: string): Promise<{ text: string; model: string; inputTokens?: number; outputTokens?: number } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey.includes('your-gemini-free-key') || apiKey.length < 10) return null;
 
   // Pace to stay under free tier RPM
-  lastGeminiCall = await pacedDelay(lastGeminiCall, GEMINI_MIN_INTERVAL_MS);
+  try {
+    lastGeminiCall = await pacedDelay(lastGeminiCall, GEMINI_MIN_INTERVAL_MS);
+  } catch {}
 
   // Try models in order: 1.5-flash (1M context, stable free tier), 2.0-flash, 2.5-flash if available
   const models = [
@@ -97,7 +113,7 @@ async function callGemini(prompt: string, systemPrompt: string): Promise<{ text:
         { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser request:\n${prompt}` }] }
       ];
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      const res = await safeFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,30 +124,38 @@ async function callGemini(prompt: string, systemPrompt: string): Promise<{ text:
             topP: 0.9,
           },
         }),
-      });
+      }, 20000);
+
+      if (!res) {
+        console.warn(`[GEMINI] ${model} no response (network blocked or timeout) — will try next model or fallback`);
+        continue;
+      }
 
       if (!res.ok) {
-        const errText = await res.text();
+        let errText = '';
+        try { errText = await res.text(); } catch { errText = 'no body'; }
         console.warn(`[GEMINI] ${model} failed ${res.status}:`, errText.slice(0, 500));
         
         // If rate limited (429), wait and retry once
         if (res.status === 429) {
           console.warn('[GEMINI] Rate limited, waiting 10s and retrying once...');
           await new Promise(r => setTimeout(r, 10000));
-          const retryRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          const retryRes = await safeFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents,
               generationConfig: { maxOutputTokens: 8000, temperature: 0.2, topP: 0.9 },
             }),
-          });
-          if (!retryRes.ok) {
-            const retryErr = await retryRes.text();
-            console.warn(`[GEMINI] ${model} retry failed ${retryRes.status}:`, retryErr.slice(0, 300));
+          }, 20000);
+          if (!retryRes || !retryRes.ok) {
+            let retryErr = '';
+            try { retryErr = retryRes ? await retryRes.text() : 'no response'; } catch {}
+            console.warn(`[GEMINI] ${model} retry failed ${retryRes?.status}:`, retryErr.slice(0, 300));
             continue; // try next model
           }
-          const retryData = await retryRes.json();
+          let retryData: any = {};
+          try { retryData = await retryRes.json(); } catch {}
           const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text || '';
           if (retryText && retryText.length > 200) {
             return {
@@ -146,7 +170,8 @@ async function callGemini(prompt: string, systemPrompt: string): Promise<{ text:
         continue; // try next model
       }
 
-      const data = await res.json();
+      let data: any = {};
+      try { data = await res.json(); } catch { data = {}; }
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       if (text && text.length > 200) {
@@ -158,7 +183,7 @@ async function callGemini(prompt: string, systemPrompt: string): Promise<{ text:
         };
       }
     } catch (e) {
-      console.warn(`[GEMINI] ${model} error:`, e);
+      console.warn(`[GEMINI] ${model} outer error (should not crash):`, e);
       continue;
     }
   }
@@ -170,7 +195,9 @@ async function callGroq(prompt: string, systemPrompt: string): Promise<{ text: s
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey || apiKey.includes('your-groq-free-key') || apiKey.length < 10) return null;
 
-  lastGroqCall = await pacedDelay(lastGroqCall, GROQ_MIN_INTERVAL_MS);
+  try {
+    lastGroqCall = await pacedDelay(lastGroqCall, GROQ_MIN_INTERVAL_MS);
+  } catch {}
 
   const models = [
     process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', // larger context, better quality, free tier
@@ -185,7 +212,7 @@ async function callGroq(prompt: string, systemPrompt: string): Promise<{ text: s
         { role: 'user', content: prompt },
       ];
 
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const res = await safeFetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,25 +225,32 @@ async function callGroq(prompt: string, systemPrompt: string): Promise<{ text: s
           temperature: 0.2, // low for meticulous
           top_p: 0.9,
         }),
-      });
+      }, 15000);
+
+      if (!res) {
+        console.warn(`[GROQ] ${model} no response — try next`);
+        continue;
+      }
 
       if (!res.ok) {
-        const errText = await res.text();
+        let errText = '';
+        try { errText = await res.text(); } catch {}
         console.warn(`[GROQ] ${model} failed ${res.status}:`, errText.slice(0, 500));
         if (res.status === 429) {
           console.warn('[GROQ] Rate limited, waiting 5s...');
           await new Promise(r => setTimeout(r, 5000));
           // retry once
-          const retryRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          const retryRes = await safeFetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${apiKey}`,
             },
             body: JSON.stringify({ model, messages, max_tokens: 8000, temperature: 0.2 }),
-          });
-          if (!retryRes.ok) continue;
-          const retryData = await retryRes.json();
+          }, 15000);
+          if (!retryRes || !retryRes.ok) continue;
+          let retryData: any = {};
+          try { retryData = await retryRes.json(); } catch {}
           const retryText = retryData.choices?.[0]?.message?.content || '';
           if (retryText && retryText.length > 200) {
             return { text: retryText, model };
@@ -226,13 +260,14 @@ async function callGroq(prompt: string, systemPrompt: string): Promise<{ text: s
         continue;
       }
 
-      const data = await res.json();
+      let data: any = {};
+      try { data = await res.json(); } catch {}
       const text = data.choices?.[0]?.message?.content || '';
       if (text && text.length > 200) {
         return { text, model };
       }
     } catch (e) {
-      console.warn(`[GROQ] ${model} error:`, e);
+      console.warn(`[GROQ] ${model} outer error (no crash):`, e);
       continue;
     }
   }

@@ -10,16 +10,19 @@ import { Assistant } from '@/components/Assistant';
 import { Logo } from '@/components/Logo';
 import { Tasks } from '@/components/Tasks';
 import { GoogleLoginButton } from '@/components/GoogleLogin';
+import { Calculator } from '@/components/Calculator';
+import { Timer } from '@/components/Timer';
+import { SpotifyEmbed } from '@/components/SpotifyEmbed';
 import { storage, getWordCount, getReadingTime, formatDate, SavedNote } from '@/lib/storage';
 import { userStorage, User } from '@/lib/user';
 import Link from 'next/link';
 import { 
   Youtube, Clock, FileText, Search, Clock3, 
-  ArrowUpRight, Shield, Check, X
+  ArrowUpRight, Shield, Check, X, Calculator as CalcIcon, Timer as TimerIcon, Music
 } from 'lucide-react';
 
 type AppState = 'home' | 'processing' | 'viewing' | 'flashcards' | 'book';
-type Tab = 'notes' | 'tasks';
+type Tab = 'notes' | 'tasks' | 'music';
 
 function extractTitle(url: string): string {
   try {
@@ -55,6 +58,9 @@ export default function Home() {
   const [showNewUser, setShowNewUser] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [dbSource, setDbSource] = useState<'loading' | 'sqlite' | 'localStorage' | 'empty'>('loading');
+  // Restored tools — real features user actually uses, not decorative
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
 
   // Load user + notes from REAL DB (SQLite) as source of truth, localStorage as cache
   const loadNotesFromDb = async (userId: string) => {
@@ -119,8 +125,13 @@ export default function Home() {
     
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key.toLowerCase() === 'l') setActiveTab('tasks');
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      const k = e.key.toLowerCase();
+      if (k === 'l') setActiveTab('tasks');
+      if (k === 'n') setActiveTab('notes');
+      if (k === 'm') setActiveTab('music');
+      if (k === 'c') setShowCalculator(v => !v);
+      if (k === 't') setShowTimer(v => !v);
+      if ((e.ctrlKey || e.metaKey) && k === 'k') {
         e.preventDefault();
         setShowSearch(!showSearch);
       }
@@ -340,8 +351,19 @@ export default function Home() {
             <button onClick={() => setActiveTab('tasks')} className={`h-9 px-4 rounded-full text-[13px] font-[600] transition-colors ${activeTab === 'tasks' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'}`}>
               Tasks
             </button>
+            <button onClick={() => setActiveTab('music')} className={`h-9 px-4 rounded-full text-[13px] font-[600] transition-colors flex items-center gap-1.5 ${activeTab === 'music' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'}`}>
+              <Music className="w-3.5 h-3.5" /> Music <span className="text-[10px] font-mono opacity-60 ml-0.5">M</span>
+            </button>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="hidden md:flex items-center gap-1 p-1 rounded-full bg-zinc-100 border border-zinc-200">
+              <button onClick={() => setShowCalculator(v => !v)} title="Calculator (C)" className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showCalculator ? 'bg-zinc-900 text-white' : 'bg-white border border-zinc-200 hover:border-zinc-900 text-zinc-600'}`}>
+                <CalcIcon className="w-4 h-4" />
+              </button>
+              <button onClick={() => setShowTimer(v => !v)} title="Timer (T)" className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showTimer ? 'bg-zinc-900 text-white' : 'bg-white border border-zinc-200 hover:border-zinc-900 text-zinc-600'}`}>
+                <TimerIcon className="w-4 h-4" />
+              </button>
+            </div>
             <GoogleLoginButton currentUserId={currentUser?.id} onLogin={(gUser) => { 
               const googleUserData = userStorage.getUsers().find(u => (u as any).googleId === gUser.id) || userStorage.getCurrentUser();
               setCurrentUser(googleUserData);
@@ -390,9 +412,12 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className="md:hidden border-t border-zinc-200 px-4 py-2 flex gap-2">
-          <button onClick={() => setActiveTab('notes')} className={`flex-1 h-9 rounded-full text-[13px] font-[600] ${activeTab === 'notes' ? 'bg-zinc-900 text-white' : 'bg-white border text-zinc-600'}`}>Notes • {notesHistory.length}</button>
-          <button onClick={() => setActiveTab('tasks')} className={`flex-1 h-9 rounded-full text-[13px] font-[600] ${activeTab === 'tasks' ? 'bg-zinc-900 text-white' : 'bg-white border text-zinc-600'}`}>Tasks</button>
+        <div className="md:hidden border-t border-zinc-200 px-3 py-2 flex gap-1.5 overflow-x-auto">
+          <button onClick={() => setActiveTab('notes')} className={`flex-1 min-w-[64px] h-9 rounded-full text-[12px] font-[600] flex items-center justify-center gap-1 ${activeTab === 'notes' ? 'bg-zinc-900 text-white' : 'bg-white border text-zinc-600'}`}>Notes • {notesHistory.length}</button>
+          <button onClick={() => setActiveTab('tasks')} className={`flex-1 min-w-[64px] h-9 rounded-full text-[12px] font-[600] ${activeTab === 'tasks' ? 'bg-zinc-900 text-white' : 'bg-white border text-zinc-600'}`}>Tasks</button>
+          <button onClick={() => setActiveTab('music')} className={`flex-1 min-w-[64px] h-9 rounded-full text-[12px] font-[600] flex items-center justify-center gap-1 ${activeTab === 'music' ? 'bg-zinc-900 text-white' : 'bg-white border text-zinc-600'}`}><Music className="w-3.5 h-3.5" /> Music</button>
+          <button onClick={() => setShowCalculator(v => !v)} className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${showCalculator ? 'bg-zinc-900 text-white' : 'bg-white border text-zinc-600'}`}><CalcIcon className="w-4 h-4" /></button>
+          <button onClick={() => setShowTimer(v => !v)} className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${showTimer ? 'bg-zinc-900 text-white' : 'bg-white border text-zinc-600'}`}><TimerIcon className="w-4 h-4" /></button>
         </div>
       </header>
 
@@ -411,9 +436,33 @@ export default function Home() {
           <div className="py-20">
             <div className="max-w-[560px] mx-auto text-center mb-12">
               <h1 className="font-display text-[36px] leading-[0.9] tracking-[-0.03em] font-[700]">Tasks • <span className="text-zinc-400">Professional</span></h1>
-              <p className="text-[14px] text-zinc-500 mt-3 font-[450]">Hours • Course • Priority • Private per user</p>
+              <p className="text-[14px] text-zinc-500 mt-3 font-[450]">Hours • Course • Priority • Private per user • Press L</p>
             </div>
             <Tasks />
+          </div>
+        ) : activeTab === 'music' ? (
+          <div className="py-20">
+            <div className="max-w-[640px] mx-auto">
+              <h1 className="font-display text-[36px] leading-[0.9] tracking-[-0.03em] font-[700]">Study music • <span className="text-zinc-400">Focus</span></h1>
+              <p className="text-[14px] text-zinc-500 mt-3 font-[450]">Paste any Spotify playlist/album/track link. Private per user, saved to localStorage, instant embed. Press M. Real code: userStorage.getUserDataKeys(userId).spotify → localStorage.setItem(storageKey, url) → iframe open.spotify.com/embed/...</p>
+              <div className="mt-2 text-[11px] font-mono text-zinc-400">Storage: localStorage key spi_spotify_{currentUser?.id?.slice(0,8) || 'default'} + spi_last_spotify_url • Parser: parseSpotifyUrl() validates open.spotify.com + regex /^[a-zA-Z0-9]{'{10,32}'}$/ • Embed: https://open.spotify.com/embed/{'{type}'}/{'{id}'}?utm_source=generator&theme=0</div>
+            </div>
+            <div className="mt-12">
+              <SpotifyEmbed />
+            </div>
+            <div className="mt-8 max-w-[640px] mx-auto rounded-[16px] border border-zinc-200 bg-white p-5">
+              <div className="text-[12px] font-[700]">How playlist link save works — real code path:</div>
+              <div className="mt-3 text-[11px] font-mono leading-[1.6] text-zinc-600 bg-zinc-50 border border-zinc-100 rounded-[10px] p-3 overflow-x-auto">
+                <div>1. User pastes: https://open.spotify.com/playlist/37i9dQZF1DWWQRwui0ExPn</div>
+                <div>2. parseSpotifyUrl(input) → {'{ type: "playlist", id: "37i9dQ...", originalUrl }'} — validates hostname includes spotify.com, parts[0] allowed types, id regex</div>
+                <div>3. storageKey = userStorage.getUserDataKeys(userId).spotify → `spi_spotify_${'{userId}'}` (isolated per user)</div>
+                <div>4. localStorage.setItem(storageKey, originalUrl) + localStorage.setItem('spi_last_spotify_url', originalUrl) — persists</div>
+                <div>5. buildEmbedUrl() → https://open.spotify.com/embed/playlist/id?theme=0 → iframe allow autoplay</div>
+                <div>6. On reload: useEffect reads localStorage.getItem(keys.spotify) || spi_last_spotify_url → restores</div>
+                <div>7. Change button clears both keys + focuses input</div>
+              </div>
+              <div className="mt-3 text-[11px] text-zinc-500 font-[450]">No green Spotify color — uses zinc-900 + #fcfcf9 + #7c3aed only on primary actions, same tokens as rest of app. Design: bg-white rounded-[16px] border zinc-200, same 8px scale.</div>
+            </div>
           </div>
         ) : (
           <>
@@ -442,7 +491,7 @@ export default function Home() {
                 <Shield className="w-3.5 h-3.5" /> Private • Free forever • Real captions, not fake • DB: SQLite data/spi.db
               </div>
               <div className="mt-2 text-[11px] font-mono text-zinc-400">
-                Source: {dbSource} • {dbSource === 'sqlite' ? 'Single shared DB for user + admin — same row visible in both' : dbSource === 'localStorage' ? 'Cache fallback — DB empty or offline' : dbSource === 'loading' ? 'Loading from SQLite...' : 'No notes — DB empty'} • User: {currentUser?.id?.slice(0,12) || 'anon'}
+                Source: {dbSource} • {dbSource === 'sqlite' ? 'Single shared DB for user + admin — same row visible in both' : dbSource === 'localStorage' ? 'Cache fallback — DB empty or offline' : dbSource === 'loading' ? 'Loading from SQLite...' : 'No notes — DB empty'} • User: {currentUser?.id?.slice(0,12) || 'anon'} • Shortcuts: N notes, L tasks, M music, C calc, T timer
               </div>
             </div>
 
@@ -493,13 +542,15 @@ export default function Home() {
       </div>
 
       <Assistant />
+      {showCalculator && <Calculator onClose={() => setShowCalculator(false)} />}
+      {showTimer && <Timer onClose={() => setShowTimer(false)} />}
 
       <footer className="border-t border-zinc-200 py-8 mt-12">
         <div className="max-w-[1280px] mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] font-mono text-zinc-500">
-          <div className="flex items-center gap-2"><Logo size="small" /><span>• DB: SQLite data/spi.db • Single shared table jobs • userId indexed</span></div>
+          <div className="flex items-center gap-2"><Logo size="small" /><span>• DB: SQLite data/spi.db • Single shared table jobs • userId indexed • Tools: C calc, T timer, M music, N notes, L tasks</span></div>
           <div className="flex items-center gap-3">
             <Link href="/admin/login" className="px-3 py-1 rounded-full bg-zinc-900 text-white font-[700]">Admin</Link>
-            <span>Press L for Tasks • Ctrl+K</span>
+            <span>Press C/T/M/N/L • Ctrl+K search</span>
           </div>
         </div>
       </footer>

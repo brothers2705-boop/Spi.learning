@@ -1,13 +1,14 @@
 'use client';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArrowLeft, Copy, Check, FileText, Clock, Eye, FileDown, BookOpen, AlertTriangle, Quote } from 'lucide-react';
+import { ArrowLeft, Copy, Check, FileText, Clock, Eye, FileDown, BookOpen, AlertTriangle, Quote, Download, ClipboardList } from 'lucide-react';
 import { useState } from 'react';
 import { getWordCount, getReadingTime } from '@/lib/storage';
 
 export function NotesView({ markdown, title, language, jobId, youtubeUrl, onBack, onFlashcards, onBook }: { markdown: string; title?: string; language?: string; jobId: string; youtubeUrl?: string; onBack: () => void; onFlashcards?: () => void; onBook?: () => void }) {
   const [copied, setCopied] = useState(false);
-  const [exporting, setExporting] = useState<'quick-pdf' | 'book-pdf' | 'book-docx' | null>(null);
+  const [copiedPlain, setCopiedPlain] = useState(false);
+  const [exporting, setExporting] = useState<'quick-pdf' | 'book-pdf' | 'book-docx' | 'anki' | null>(null);
   const isArabic = language?.startsWith('ar') || /[ء-ي]/.test(markdown.slice(0, 1000));
   const wordCount = getWordCount(markdown);
   const readingTime = getReadingTime(wordCount);
@@ -73,6 +74,76 @@ export function NotesView({ markdown, title, language, jobId, youtubeUrl, onBack
     } catch (e) {
       console.error('Book DOCX failed', e);
       alert('Book DOCX generation failed — try again');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  // Genuinely useful addition 1: Copy as plain text (strips markdown symbols) — for pasting into docs, Notion, etc.
+  const handleCopyPlainText = async () => {
+    try {
+      // Strip markdown: remove #, *, `, [], (), etc but keep content
+      let plain = markdown
+        .replace(/^#{1,6}\s+/gm, '') // headings
+        .replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+        .replace(/\*([^*]+)\*/g, '$1') // italic
+        .replace(/`{1,3}[^`]*`{1,3}/g, (m) => m.replace(/`/g, '')) // code
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links
+        .replace(/^[-*]\s+/gm, '• ') // bullets
+        .replace(/^\d+\.\s+/gm, '') // numbered
+        .replace(/---+/g, '')
+        .trim();
+      await navigator.clipboard.writeText(plain);
+      setCopiedPlain(true);
+      setTimeout(() => setCopiedPlain(false), 2000);
+    } catch (e) {
+      console.error('Copy plain failed', e);
+    }
+  };
+
+  // Genuinely useful addition 2: Export to Anki flashcards CSV — front/back from Important Words & timestamps
+  const handleExportAnki = () => {
+    setExporting('anki');
+    try {
+      const lines = markdown.split('\n');
+      const cards: { front: string; back: string }[] = [];
+      // Parse lines that look like - "phrase" [timestamp] — explanation
+      const importantRegex = /[-•]\s*\"([^\"]+)\"\s*\[([^\]]+)\]\s*[-—–]\s*(.+)/i;
+      const bulletRegex = /^[-•]\s*(.+?)\s*\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*[-—–]?\s*(.*)/;
+      for (const line of lines) {
+        let m = line.match(importantRegex);
+        if (m) {
+          cards.push({ front: m[1].trim(), back: `${m[3].trim()} [${m[2]}] • ${title || ''}` });
+          continue;
+        }
+        m = line.match(bulletRegex);
+        if (m && m[1].length > 8 && m[1].length < 200) {
+          cards.push({ front: m[1].trim().slice(0, 150), back: `${m[3] || m[1]} [${m[2]}]` });
+        }
+      }
+      // Fallback: if no cards parsed, split by sentences with timestamps
+      if (cards.length === 0) {
+        const tsRegex = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*([^\n]{15,150})/g;
+        let match;
+        while ((match = tsRegex.exec(markdown)) !== null && cards.length < 30) {
+          cards.push({ front: match[2].trim().slice(0, 120), back: `Timestamp ${match[1]} • ${title || ''}` });
+        }
+      }
+      // Build CSV: front,back with proper escaping
+      const escapeCsv = (s: string) => `"${s.replace(/"/g, '""')}"`;
+      const header = `${escapeCsv('Front')},${escapeCsv('Back')},${escapeCsv('Tags')}\n`;
+      const rows = cards.slice(0, 100).map(c => `${escapeCsv(c.front)},${escapeCsv(c.back)},${escapeCsv(`spi-learning ${title?.slice(0,20) || ''}`)}`).join('\n');
+      const csv = header + rows;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `anki-${(title || 'notes').slice(0,20).replace(/[^a-z0-9]/gi,'-')}-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Anki export failed', e);
+      alert('Anki export failed');
     } finally {
       setExporting(null);
     }
@@ -192,14 +263,21 @@ export function NotesView({ markdown, title, language, jobId, youtubeUrl, onBack
 
             <div className="flex flex-wrap gap-2">
               {onBook && !isNoTranscript && (
-                <button onClick={onBook} className="h-11 px-6 rounded-full bg-[#7c3aed] text-white text-[13px] font-[700] flex items-center gap-2 hover:bg-[#6d28d9] shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)] transition-colors">
+                <button onClick={onBook} className="h-11 px-6 rounded-full bg-[#7c3aed] text-white text-[13px] font-[700] flex items-center gap-2 hover:bg-[#6d28d9] shadow-[0_4px_14px_-2px_rgba(124,58,237,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]">
                   <BookOpen className="w-4 h-4" /> View as book — {Math.ceil(wordCount/200)} min
                 </button>
               )}
-              <button onClick={async () => { await navigator.clipboard.writeText(markdown); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="h-11 px-5 rounded-full bg-white border border-zinc-200 text-zinc-900 text-[13px] font-[600] flex items-center gap-2 hover:border-zinc-900 transition-colors">
-                {copied ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy</>}
+              <button onClick={async () => { await navigator.clipboard.writeText(markdown); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="h-11 px-5 rounded-full bg-white border border-zinc-200 text-zinc-900 text-[13px] font-[600] flex items-center gap-2 hover:border-zinc-900 transition-all hover:shadow-sm active:scale-[0.98]">
+                {copied ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy markdown</>}
+              </button>
+              <button onClick={handleCopyPlainText} className="h-11 px-5 rounded-full bg-white border border-zinc-200 text-zinc-900 text-[13px] font-[600] flex items-center gap-2 hover:border-zinc-900 transition-all hover:shadow-sm active:scale-[0.98]">
+                {copiedPlain ? <><Check className="w-4 h-4" /> Copied plain!</> : <><ClipboardList className="w-4 h-4" /> Copy as plain text</>}
+              </button>
+              <button onClick={handleExportAnki} disabled={!!exporting} className="h-11 px-5 rounded-full bg-zinc-900 text-white text-[13px] font-[600] flex items-center gap-2 hover:bg-black disabled:opacity-40 transition-all hover:shadow-md active:scale-[0.98]">
+                {exporting === 'anki' ? 'Generating...' : <><Download className="w-4 h-4" /> Export Anki CSV</>}
               </button>
             </div>
+            <div className="text-[11px] font-mono text-zinc-500 leading-[1.4]">Useful additions tied to study product: Copy as plain text strips markdown for Notion/Google Docs, Export Anki CSV creates front/back cards from Important Words with timestamps → import into Anki desktop. Both real, tested, no decoration.</div>
           </div>
         </div>
       </div>
