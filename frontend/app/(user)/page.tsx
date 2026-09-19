@@ -342,7 +342,7 @@ function LogoMarkOnly({ className = 'w-8 h-8', variant = 'default', book = false
       <path d="M20 2.5L20 9.5L27 9.5L20 2.5Z" fill="currentColor" fillOpacity="0.12"/>
       <path d="M12.2 8.8V19.8L21.2 14.3L12.2 8.8Z" fill="currentColor"/>
       <path d="M11.5 23.5H21.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-      <path d="M11.5 26.5H17.8" stroke="currentColor" strokeWidth="1.8" stroke-linecap="round"/>
+      <path d="M11.5 26.5H17.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
     </svg>
   );
 }
