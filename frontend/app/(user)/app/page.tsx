@@ -326,12 +326,18 @@ export default function Home() {
   if (appState === 'viewing' && viewingNote) return <NotesView markdown={viewingNote.markdown} title={viewingNote.title} language={viewingNote.language} jobId={viewingNote.id} youtubeUrl={viewingNote.youtubeUrl} onBack={() => setAppState('home')} onFlashcards={() => setAppState('flashcards')} onBook={() => setAppState('book')} />;
   if (appState === 'processing') {
     return (
-      <div className="min-h-screen bg-[#fcfcf9] flex items-center justify-center p-6">
-        <div className="text-center max-w-[360px] w-full">
-          <div className="w-10 h-10 rounded-full border-2 border-zinc-200 border-t-zinc-900 animate-spin mx-auto mb-4" />
-          <div className="font-display text-[18px] font-[700] tracking-[-0.02em]">Generating notes...</div>
-          <div className="text-[13px] text-zinc-500 mt-2 font-[450]">{processingStep}</div>
-          <div className="text-[11px] font-mono text-zinc-400 mt-3">Writing to SQLite data/spi.db — single shared DB for user + admin</div>
+      <div className="min-h-screen bg-[#fcfcf9] text-zinc-900 antialiased flex items-center justify-center p-6" style={{ fontFamily: 'Inter, sans-serif', background: '#fcfcf9' }}>
+        <div className="text-center max-w-[400px] w-full rounded-[16px] border border-zinc-200 bg-white p-8 shadow-sm">
+          <div className="w-12 h-12 rounded-[12px] bg-zinc-900 flex items-center justify-center mx-auto mb-4">
+            <div className="w-6 h-6 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+          </div>
+          <div className="font-display text-[18px] font-[700] tracking-[-0.02em] text-zinc-900" style={{ fontFamily: 'Newsreader, serif' }}>Generating notes...</div>
+          <div className="text-[13px] text-zinc-600 mt-2 font-[450] leading-[1.5]">{processingStep}</div>
+          <div className="mt-4 h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden">
+            <div className="h-full bg-[#7c3aed] rounded-full animate-pulse" style={{ width: '60%' }} />
+          </div>
+          <div className="text-[11px] font-mono text-zinc-500 mt-4 bg-[#fcfcf9] border border-zinc-100 rounded-[8px] p-2.5">Writing to SQLite data/spi.db — single shared DB for user + admin • Real transcript pipeline</div>
+          <div className="mt-3 text-[11px] text-zinc-400 font-[450]">Same design tokens: bg-[#fcfcf9], Inter/Newsreader, rounded-[16px], zinc-900 — no unstyled HTML</div>
         </div>
       </div>
     );
