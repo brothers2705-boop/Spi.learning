@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: spi-learning
+    env: node
+    plan: free
+    region: frankfurt # closest to Cairo EG, change to oregon/singapore if needed
+    branch: arena/01a0b50f-spi-learning # or main after merge
+    rootDir: frontend
+    buildCommand: npm install --ignore-scripts && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GEMINI_API_KEY
+        sync: false # set in dashboard, free from https://aistudio.google.com/apikey
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: GROQ_API_KEY
+        sync: false # optional, free from https://console.groq.com/keys
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        sync: false # optional, from https://console.cloud.google.com/
+      - key: ADMIN_EMAIL
+        value: admin@spi.learning
+      - key: ADMIN_PASSWORD_HASH
+        sync: false # generate via: node -e "console.log(require('bcryptjs').hashSync('YOUR_PASSWORD',10))"
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false # optional, for Postgres persistence (Supabase/Neon free) — if not set, uses data/jobs.json fallback
+    healthCheckPath: /
+    autoDeploy: true
