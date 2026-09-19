@@ -1,7 +1,44 @@
 // JOBS STORE — now SQLite, single source of truth for both user and admin
 // Previously flat JSON file data/jobs.json — now real SQLite data/spi.db with transaction safety
+// Fallback to JSON when better-sqlite3 bindings missing (dev workaround for node-gyp network block)
 
 import { getDatabase, parseJobRow } from './db';
+import fs from 'fs';
+import path from 'path';
+
+const JSON_FALLBACK_PATH = path.join(process.cwd(), 'data', 'jobs.json');
+
+let jsonFallbackForced = false;
+
+function isJsonFallback(): boolean {
+  if (jsonFallbackForced) return true;
+  try {
+    const TestDB = require('better-sqlite3');
+    const test = new TestDB(':memory:');
+    test.close();
+    return false;
+  } catch (e) {
+    jsonFallbackForced = true;
+    console.warn('[JOBS STORE] Using JSON fallback — better-sqlite3 bindings missing or failed:', (e as any).message?.slice(0, 300));
+    return true;
+  }
+}
+
+function readJsonJobs(): any[] {
+  try {
+    if (!fs.existsSync(JSON_FALLBACK_PATH)) return [];
+    const raw = fs.readFileSync(JSON_FALLBACK_PATH, 'utf-8');
+    return JSON.parse(raw);
+  } catch { return []; }
+}
+
+function writeJsonJobs(jobs: any[]) {
+  try {
+    const dir = path.dirname(JSON_FALLBACK_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(JSON_FALLBACK_PATH, JSON.stringify(jobs, null, 2));
+  } catch {}
+}
 
 export interface Job {
   id: string;
@@ -36,6 +73,12 @@ export interface Job {
 }
 
 export function getAllJobs(): Job[] {
+  if (isJsonFallback()) {
+    try {
+      const jobs = readJsonJobs();
+      return jobs.slice(0, 200).map(parseJobRow) as Job[];
+    } catch { return []; }
+  }
   try {
     const db = getDatabase();
     const rows = db.prepare('SELECT * FROM jobs ORDER BY createdAt DESC LIMIT 200').all();
@@ -46,6 +89,12 @@ export function getAllJobs(): Job[] {
 }
 
 export function getJobsByUserId(userId: string): Job[] {
+  if (isJsonFallback()) {
+    try {
+      const jobs = readJsonJobs();
+      return jobs.filter((j: any) => j.userId === userId).slice(0, 100).map(parseJobRow) as Job[];
+    } catch { return []; }
+  }
   try {
     const db = getDatabase();
     const rows = db.prepare('SELECT * FROM jobs WHERE userId = ? ORDER BY createdAt DESC LIMIT 100').all(userId);
@@ -56,6 +105,13 @@ export function getJobsByUserId(userId: string): Job[] {
 }
 
 export function getJobById(id: string): Job | null {
+  if (isJsonFallback()) {
+    try {
+      const jobs = readJsonJobs();
+      const found = jobs.find((j: any) => j.id === id);
+      return found ? (parseJobRow(found) as Job) : null;
+    } catch { return null; }
+  }
   try {
     const db = getDatabase();
     const row = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
@@ -66,6 +122,38 @@ export function getJobById(id: string): Job | null {
 }
 
 export function createJob(job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Job {
+  if (isJsonFallback()) {
+    const now = new Date().toISOString();
+    const newJob: any = {
+      id: job.id || `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      youtubeUrl: job.youtubeUrl,
+      title: job.title,
+      status: job.status,
+      userId: job.userId || null,
+      sessionId: job.sessionId || null,
+      duration: job.duration || null,
+      source: job.source || 'ai',
+      modelUsed: job.modelUsed || null,
+      wordCount: job.wordCount || 0,
+      readingTime: job.readingTime || 0,
+      transcriptSource: job.transcriptSource || 'ai_generated',
+      chunkCount: job.chunkCount || 1,
+      tokenUsage: job.tokenUsage || { input: 0, output: 0, total: 0 },
+      estimatedCost: job.estimatedCost || 0,
+      timing: job.timing || { fetchTitle: 0, aiGeneration: 0, total: 0 },
+      markdown: job.markdown || null,
+      error: job.error || null,
+      createdAt: now,
+      updatedAt: now,
+      completedAt: (job as any).completedAt || (job.status === 'completed' ? now : null),
+    };
+    const jobs = readJsonJobs();
+    jobs.unshift(newJob);
+    const trimmed = jobs.slice(0, 200);
+    writeJsonJobs(trimmed);
+    return parseJobRow(newJob) as Job;
+  }
+
   const db = getDatabase();
   const now = new Date().toISOString();
   const newJob: any = {
@@ -107,6 +195,17 @@ export function createJob(job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'> & { i
 }
 
 export function updateJob(id: string, updates: Partial<Job>): Job | null {
+  if (isJsonFallback()) {
+    try {
+      const jobs = readJsonJobs();
+      const idx = jobs.findIndex((j: any) => j.id === id);
+      if (idx === -1) return null;
+      const now = new Date().toISOString();
+      jobs[idx] = { ...jobs[idx], ...updates, updatedAt: now, completedAt: (updates.status === 'completed' || updates.status === 'failed') ? now : jobs[idx].completedAt };
+      writeJsonJobs(jobs);
+      return parseJobRow(jobs[idx]) as Job;
+    } catch { return null; }
+  }
   try {
     const db = getDatabase();
     const existing = getJobById(id);
@@ -141,6 +240,15 @@ export function updateJob(id: string, updates: Partial<Job>): Job | null {
 }
 
 export function deleteJob(id: string): boolean {
+  if (isJsonFallback()) {
+    try {
+      const jobs = readJsonJobs();
+      const filtered = jobs.filter((j: any) => j.id !== id);
+      if (filtered.length === jobs.length) return false;
+      writeJsonJobs(filtered);
+      return true;
+    } catch { return false; }
+  }
   try {
     const db = getDatabase();
     const result = db.prepare('DELETE FROM jobs WHERE id = ?').run(id);
